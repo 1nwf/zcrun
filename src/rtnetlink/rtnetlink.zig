@@ -23,42 +23,29 @@ pub fn deinit(self: *Self) void {
     std.os.close(self.fd);
 }
 
-pub fn exec(self: *Self, msg: []u8) !void {
+pub fn exec(self: *Self, msg: []const u8) !void {
     std.debug.assert(try std.os.send(self.fd, msg, 0) == msg.len);
     try self.recv();
 }
 
-fn recv(self: *Self) !void {
+pub fn recv(self: *Self) !void {
+    // TODO: improve response handling
     var buff: [512]u8 = std.mem.zeroes([512]u8);
     const n = try std.os.recv(self.fd, &buff, 0);
-    // log.info("n: {}", .{n});
-    // log.info("buff: {any}", .{buff[0..n]});
+    if (n == 0) {
+        return error.InvalidResponse;
+    }
 
     const header = std.mem.bytesAsValue(linux.nlmsghdr, buff[0..@sizeOf(linux.nlmsghdr)]);
-    // log.info("header: {}", .{header});
+    log.info("header: {}", .{header});
     if (header.type == .DONE) {
         return;
     } else if (header.type == .ERROR) {
-        return error.Error;
-    }
-
-    var start: usize = @sizeOf(linux.nlmsghdr);
-    // const link = std.mem.bytesAsValue(linux.ifinfomsg, buff[start .. start + @sizeOf(linux.ifinfomsg)]);
-    // log.info("link: {}", .{link});
-
-    start += @sizeOf(linux.ifinfomsg);
-
-    while (start < n) {
-        const attr = std.mem.bytesAsValue(linux.rtattr, buff[start .. start + @sizeOf(linux.rtattr)]);
-        switch (attr.type) {
-            .IFNAME => {
-                const name: []u8 = @ptrCast(buff[start + @sizeOf(linux.rtattr) .. start + attr.len]);
-                log.info("name is: {s}", .{name});
-                break;
-            },
-            else => {},
+        const err_val: *u32 = @alignCast(@ptrCast(&buff[@sizeOf(linux.nlmsghdr)]));
+        if (err_val.* != 0) {
+            return error.Error;
         }
-        start += attr.len;
+        return;
     }
 
     try self.recv();
