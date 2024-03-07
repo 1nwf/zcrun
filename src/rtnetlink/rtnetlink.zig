@@ -40,9 +40,11 @@ pub fn recv(self: *Self) !void {
     log.info("header: {}", .{header});
     if (header.type == .DONE) {
         return;
-    } else if (header.type == .ERROR) {
-        const err_val: *u32 = @alignCast(@ptrCast(&buff[@sizeOf(linux.nlmsghdr)]));
-        if (err_val.* != 0) {
+    } else if (header.type == .ERROR) { // ACK/NACK response
+        const err_val: *i32 = @alignCast(@ptrCast(&buff[@sizeOf(linux.nlmsghdr)]));
+        const code: linux.E = @enumFromInt(-1 * err_val.*);
+        if (code != .SUCCESS) {
+            log.info("err: {}", .{code});
             return error.Error;
         }
         return;
