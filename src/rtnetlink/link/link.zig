@@ -1,5 +1,6 @@
 const std = @import("std");
 const linux = std.os.linux;
+const LinkAttribute = @import("attrs.zig").LinkAttribute;
 
 const Link = @This();
 
@@ -25,30 +26,6 @@ pub const Flags = struct {
     pub const ECHO: c_uint = 1 << 18;
 };
 
-pub const LinkAttribute = union(enum) {
-    name: []const u8,
-    address: [4]u8,
-
-    pub fn size(self: LinkAttribute) usize {
-        const val_len = switch (self) {
-            .name => |val| val.len + 1,
-            .address => |val| val.len,
-        };
-
-        return std.mem.alignForward(usize, val_len + @sizeOf(linux.rtattr), 4);
-    }
-
-    pub fn getAttr(self: LinkAttribute) linux.rtattr {
-        var attr: linux.rtattr = switch (self) {
-            .name => |val| .{ .len = @intCast(val.len + 1), .type = .IFNAME },
-            .address => |val| .{ .len = @intCast(val.len), .type = .ADDRESS },
-        };
-
-        attr.len = @intCast(std.mem.alignForward(usize, attr.len + @sizeOf(linux.rtattr), 4));
-        return attr;
-    }
-};
-
 const RequestType = enum {
     create,
     delete,
@@ -63,40 +40,76 @@ const RequestType = enum {
             .set => .RTM_SETLINK,
         };
     }
+
+    fn getFlags(self: RequestType) u16 {
+        var flags: u16 = linux.NLM_F_REQUEST | linux.NLM_F_ACK;
+        switch (self) {
+            .create => flags |= linux.NLM_F_CREATE,
+            else => {},
+        }
+
+        return flags;
+    }
+};
+
+pub const LinkInfo = struct {
+    header: linux.ifinfomsg,
+    attrs: std.ArrayList(LinkAttribute),
+
+    pub fn init(allocator: std.mem.Allocator) LinkInfo {
+        return .{
+            .header = .{
+                .family = linux.AF.UNSPEC,
+                .type = 1, // ethernet device
+                .flags = 0,
+                .index = 0,
+                .change = 0,
+            },
+
+            .attrs = std.ArrayList(LinkAttribute).init(allocator),
+        };
+    }
+
+    pub fn size(self: *const LinkInfo) usize {
+        var s: usize = @sizeOf(linux.ifinfomsg);
+        for (self.attrs.items) |a| {
+            s += a.size();
+        }
+        return s;
+    }
+
+    pub fn encode(self: *const LinkInfo, buff: []u8) !void {
+        var start: usize = 0;
+        @memcpy(buff[start .. start + @sizeOf(linux.ifinfomsg)], std.mem.asBytes(&self.header));
+        start += @sizeOf(linux.ifinfomsg);
+
+        for (self.attrs.items) |attr| {
+            start += try attr.encode(buff[start..]);
+        }
+    }
 };
 
 hdr: linux.nlmsghdr,
-link_header: linux.ifinfomsg,
-attrs: std.ArrayList(LinkAttribute),
+link_message: LinkInfo,
 allocator: std.mem.Allocator,
 
 pub fn init(allocator: std.mem.Allocator, req_type: RequestType) Link {
     return .{
         .hdr = .{
             .type = req_type.toMsgType(),
-            .flags = linux.NLM_F_REQUEST | linux.NLM_F_ACK,
+            .flags = req_type.getFlags(),
             .len = 0,
             .pid = 0,
             .seq = 0,
         },
-        .link_header = .{
-            .family = linux.AF.UNSPEC,
-            .type = 1, // ethernet device
-            .flags = 0,
-            .index = 0,
-            .change = 0,
-        },
-        .attrs = std.ArrayList(LinkAttribute).init(allocator),
+        .link_message = LinkInfo.init(allocator),
         .allocator = allocator,
     };
 }
 
 pub fn compose(self: *Link) ![]u8 {
-    var size: usize = @sizeOf(linux.ifinfomsg) + @sizeOf(linux.nlmsghdr);
-    for (self.attrs.items) |a| {
-        size += a.size();
-    }
-    // size = std.mem.alignForward(usize, size, 4);
+    const size: usize = self.link_message.size() + @sizeOf(linux.nlmsghdr);
+
     var buff = try self.allocator.alloc(u8, size);
     self.hdr.len = @intCast(size);
 
@@ -105,27 +118,11 @@ pub fn compose(self: *Link) ![]u8 {
     var start: usize = 0;
     @memcpy(buff[0..@sizeOf(linux.nlmsghdr)], std.mem.asBytes(&self.hdr));
     start += @sizeOf(linux.nlmsghdr);
-    @memcpy(buff[start .. start + @sizeOf(linux.ifinfomsg)], std.mem.asBytes(&self.link_header));
-    start += @sizeOf(linux.ifinfomsg);
-
-    for (self.attrs.items) |attr| {
-        const attr_header = attr.getAttr();
-        @memcpy(buff[start .. start + @sizeOf(linux.rtattr)], std.mem.asBytes(&attr_header));
-        start += @sizeOf(linux.rtattr);
-
-        switch (attr) {
-            .name => |n| {
-                @memcpy(buff[start .. start + n.len], n);
-                buff[start + n.len] = 0;
-                start += n.len + 1;
-            },
-            else => @panic("invalid attr"),
-        }
-    }
+    try self.link_message.encode(buff[start..]);
 
     return buff;
 }
 
 pub fn addAttr(self: *Link, attr: LinkAttribute) !void {
-    try self.attrs.append(attr);
+    try self.link_message.attrs.append(attr);
 }
