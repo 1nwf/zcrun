@@ -42,9 +42,9 @@ const RequestType = enum {
     }
 
     fn getFlags(self: RequestType) u16 {
-        var flags: u16 = linux.NLM_F_REQUEST | linux.NLM_F_EXCL | linux.NLM_F_ACK;
+        var flags: u16 = linux.NLM_F_REQUEST | linux.NLM_F_ACK;
         switch (self) {
-            .create => flags |= linux.NLM_F_CREATE,
+            .create => flags |= linux.NLM_F_CREATE | linux.NLM_F_EXCL,
             else => {},
         }
 
