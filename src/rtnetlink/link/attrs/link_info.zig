@@ -56,6 +56,12 @@ const Info = union(enum) {
         };
         return nalign(val_size + @sizeOf(linux.rtattr));
     }
+
+    fn deinit(self: *Info) void {
+        switch (self.*) {
+            .peer_info => |*val| val.deinit(),
+        }
+    }
 };
 
 pub const LinkInfoAttr = struct {
@@ -86,5 +92,11 @@ pub const LinkInfoAttr = struct {
             len += info.size();
         }
         return nalign(len);
+    }
+
+    pub fn deinit(self: *LinkInfoAttr) void {
+        if (self.info != null) {
+            self.info.?.deinit();
+        }
     }
 };

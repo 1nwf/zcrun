@@ -87,6 +87,16 @@ pub const LinkInfo = struct {
             start += try attr.encode(buff[start..]);
         }
     }
+
+    pub fn deinit(self: *LinkInfo) void {
+        for (self.attrs.items) |*attr| {
+            switch (attr.*) {
+                .link_info => |*val| val.deinit(),
+                else => {},
+            }
+        }
+        self.attrs.deinit();
+    }
 };
 
 hdr: linux.nlmsghdr,
@@ -125,4 +135,8 @@ pub fn compose(self: *Link) ![]u8 {
 
 pub fn addAttr(self: *Link, attr: LinkAttribute) !void {
     try self.msg.attrs.append(attr);
+}
+
+pub fn deinit(self: *Link) void {
+    self.msg.deinit();
 }
