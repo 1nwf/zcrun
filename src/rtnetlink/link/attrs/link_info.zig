@@ -25,32 +25,56 @@ const Kind = enum {
     }
 };
 
-pub const LinkInfoAttr = struct {
+const Info = union(enum) {
     peer_info: link.LinkInfo,
+    fn info_type(self: Info) linux.IFLA {
+        return switch (self) {
+            .peer_info => VethInfoPeer,
+        };
+    }
+
+    fn encode(self: Info, buff: []u8) !usize {
+        const header = linux.rtattr{ .len = @intCast(self.size()), .type = self.info_type() };
+        @memcpy(buff[0..@sizeOf(linux.rtattr)], std.mem.asBytes(&header));
+        switch (self) {
+            inline else => |v| {
+                try v.encode(buff[@sizeOf(linux.rtattr)..]);
+            },
+        }
+
+        return header.len;
+    }
+
+    fn size(self: Info) usize {
+        const val_size = switch (self) {
+            inline else => |v| v.size(),
+        };
+        return nalign(val_size + @sizeOf(linux.rtattr));
+    }
+};
+
+pub const LinkInfoAttr = struct {
+    info: Info,
     kind: Kind,
 
     pub fn encode(self: LinkInfoAttr, buff: []u8) anyerror!usize {
         var start: usize = 0;
-        const attr_size = @sizeOf(linux.rtattr);
+        const len = self.size();
 
         // link info kind
         start += try self.kind.encode(buff[0..]);
 
         // link info data
-        const hdr3 = linux.rtattr{ .len = @intCast(nalign(self.peer_info.size() + attr_size * 2)), .type = LinkInfoData };
-        const hdr4 = linux.rtattr{ .len = @intCast(nalign(self.peer_info.size() + attr_size)), .type = VethInfoPeer };
-        @memcpy(buff[start .. start + attr_size], std.mem.asBytes(&hdr3));
-        start += attr_size;
-        @memcpy(buff[start .. start + attr_size], std.mem.asBytes(&hdr4));
-        start += attr_size;
+        const hdr3 = linux.rtattr{ .len = @intCast(len - start), .type = LinkInfoData };
+        @memcpy(buff[start .. start + @sizeOf(linux.rtattr)], std.mem.asBytes(&hdr3));
+        start += @sizeOf(linux.rtattr);
 
-        // peer link info
-        try self.peer_info.encode(buff[start..]);
-        return self.size();
+        _ = try self.info.encode(buff[start..]);
+        return len;
     }
 
     pub fn size(self: LinkInfoAttr) usize {
-        const len = std.mem.alignForward(usize, self.peer_info.size(), 4) + (@sizeOf(linux.rtattr) * 2) + self.kind.size();
-        return std.mem.alignForward(usize, len, 4);
+        const len = self.info.size() + @sizeOf(linux.rtattr) + self.kind.size();
+        return nalign(len);
     }
 };

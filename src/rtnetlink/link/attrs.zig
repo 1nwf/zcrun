@@ -44,10 +44,8 @@ pub const LinkAttribute = union(enum) {
                 buff[val.len] = 0;
                 return val.len + 1;
             },
-            .link_info => |val| {
-                return try val.encode(buff);
-            },
-            else => 0,
+            .link_info => |val| try val.encode(buff),
+            else => @panic("todo"),
         };
     }
 };
