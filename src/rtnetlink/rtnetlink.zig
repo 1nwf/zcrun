@@ -2,6 +2,7 @@ const std = @import("std");
 const log = std.log;
 const linux = std.os.linux;
 const link = @import("link.zig");
+const addr = @import("address.zig");
 
 const Self = @This();
 
@@ -76,4 +77,8 @@ pub fn linkGet(self: *Self, options: link.LinkGet.Options) !link.LinkGet {
 
 pub fn linkSet(self: *Self, options: link.LinkSet.Options) !link.LinkSet {
     return link.LinkSet.init(self.allocator, self, options);
+}
+
+pub fn addrAdd(self: *Self, options: addr.AddrAdd.Options) !addr.AddrAdd {
+    return addr.AddrAdd.init(self.allocator, self, options);
 }

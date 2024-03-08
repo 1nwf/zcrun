@@ -5,26 +5,37 @@ const linux = std.os.linux;
 
 const AddrAdd = @This();
 
+pub const Options = struct {
+    index: c_int,
+    addr: [4]u8,
+    prefix_len: u8,
+};
+
 msg: Addr,
 nl: *RtNetLink,
-pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, index: u32, addr: [4]u8, prefix_len: u8) !AddrAdd {
-    var msg = Addr.init(allocator, .create);
-    msg.msg.hdr.index = index;
-    msg.msg.hdr.prefix_len = prefix_len;
-    try msg.addAttr(.{ .address = addr });
-    try msg.addAttr(.{ .local = addr });
+opts: Options,
 
-    if (prefix_len == 32) {
-        try msg.addAttr(.{ .broadcast = addr });
+pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) !AddrAdd {
+    const msg = Addr.init(allocator, .create);
+    return .{ .msg = msg, .nl = nl, .opts = options };
+}
+
+fn applyOptions(self: *AddrAdd) !void {
+    self.msg.msg.hdr.index = @intCast(self.opts.index);
+    self.msg.msg.hdr.prefix_len = self.opts.prefix_len;
+    try self.msg.addAttr(.{ .address = self.opts.addr });
+    try self.msg.addAttr(.{ .local = self.opts.addr });
+
+    if (self.opts.prefix_len == 32) {
+        try self.msg.addAttr(.{ .broadcast = self.opts.addr });
     } else {
-        const brd = (@as(u32, 0xffff_ffff) >> @intCast(prefix_len)) | std.mem.bytesAsValue(u32, &addr).*;
-        try msg.addAttr(.{ .broadcast = std.mem.toBytes(brd) });
+        const brd = (@as(u32, 0xffff_ffff) >> @intCast(self.opts.prefix_len)) | std.mem.bytesAsValue(u32, &self.opts.addr).*;
+        try self.msg.addAttr(.{ .broadcast = std.mem.toBytes(brd) });
     }
-
-    return .{ .msg = msg, .nl = nl };
 }
 
 pub fn exec(self: *AddrAdd) !void {
+    try self.applyOptions();
     try self.nl.send(try self.msg.compose());
     return self.nl.recv_ack();
 }
