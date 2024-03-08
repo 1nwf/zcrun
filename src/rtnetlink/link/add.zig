@@ -15,7 +15,7 @@ msg: LinkMessage,
 nl: *RtNetLink,
 opts: Options,
 
-pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) !LinkAdd {
+pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) LinkAdd {
     const msg = LinkMessage.init(allocator, .create);
     return LinkAdd{ .msg = msg, .nl = nl, .opts = options };
 }

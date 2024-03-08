@@ -15,7 +15,7 @@ msg: Addr,
 nl: *RtNetLink,
 opts: Options,
 
-pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) !AddrAdd {
+pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) AddrAdd {
     const msg = Addr.init(allocator, .create);
     return .{ .msg = msg, .nl = nl, .opts = options };
 }

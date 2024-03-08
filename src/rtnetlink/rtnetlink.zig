@@ -67,18 +67,18 @@ pub fn handle_ack(msg: NlMsgError) !void {
     }
 }
 
-pub fn linkAdd(self: *Self, options: link.LinkAdd.Options) !link.LinkAdd {
+pub fn linkAdd(self: *Self, options: link.LinkAdd.Options) link.LinkAdd {
     return link.LinkAdd.init(self.allocator, self, options);
 }
 
-pub fn linkGet(self: *Self, options: link.LinkGet.Options) !link.LinkGet {
+pub fn linkGet(self: *Self, options: link.LinkGet.Options) link.LinkGet {
     return link.LinkGet.init(self.allocator, self, options);
 }
 
-pub fn linkSet(self: *Self, options: link.LinkSet.Options) !link.LinkSet {
+pub fn linkSet(self: *Self, options: link.LinkSet.Options) link.LinkSet {
     return link.LinkSet.init(self.allocator, self, options);
 }
 
-pub fn addrAdd(self: *Self, options: addr.AddrAdd.Options) !addr.AddrAdd {
+pub fn addrAdd(self: *Self, options: addr.AddrAdd.Options) addr.AddrAdd {
     return addr.AddrAdd.init(self.allocator, self, options);
 }

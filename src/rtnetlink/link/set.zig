@@ -17,7 +17,7 @@ pub const Options = struct {
 msg: LinkMessage,
 nl: *RtNetLink,
 opts: Options,
-pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) !LinkSet {
+pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) LinkSet {
     var msg = LinkMessage.init(allocator, .set);
     msg.msg.header.index = options.index;
     return .{ .msg = msg, .nl = nl, .opts = options };
