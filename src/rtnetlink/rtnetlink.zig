@@ -1,6 +1,7 @@
 const std = @import("std");
 const log = std.log;
 const linux = std.os.linux;
+const link = @import("link.zig");
 
 const Self = @This();
 
@@ -63,4 +64,16 @@ pub fn handle_ack(msg: NlMsgError) !void {
         log.info("err: {}", .{code});
         return error.Error;
     }
+}
+
+pub fn linkAdd(self: *Self, options: link.LinkAdd.Options) !link.LinkAdd {
+    return link.LinkAdd.init(self.allocator, self, options);
+}
+
+pub fn linkGet(self: *Self, options: link.LinkGet.Options) !link.LinkGet {
+    return link.LinkGet.init(self.allocator, self, options);
+}
+
+pub fn linkSet(self: *Self, options: link.LinkSet.Options) !link.LinkSet {
+    return link.LinkSet.init(self.allocator, self, options);
 }

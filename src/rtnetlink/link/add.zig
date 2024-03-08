@@ -5,18 +5,26 @@ const linux = std.os.linux;
 
 const LinkAdd = @This();
 
+pub const Options = struct {
+    name: ?[]const u8 = null,
+    veth: ?struct { []const u8, []const u8 } = null,
+    bridge: ?[]const u8 = null,
+};
+
 msg: LinkMessage,
 nl: *RtNetLink,
-pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink) LinkAdd {
+opts: Options,
+
+pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) !LinkAdd {
     const msg = LinkMessage.init(allocator, .create);
-    return .{ .msg = msg, .nl = nl };
+    return LinkAdd{ .msg = msg, .nl = nl, .opts = options };
 }
 
-pub fn name(self: *LinkAdd, val: []const u8) !void {
+fn name(self: *LinkAdd, val: []const u8) !void {
     try self.msg.addAttr(.{ .name = val });
 }
 
-pub fn veth(self: *LinkAdd, if_name: []const u8, peer_name: []const u8) !void {
+fn veth(self: *LinkAdd, if_name: []const u8, peer_name: []const u8) !void {
     try self.name(if_name);
 
     var peer_info = LinkMessage.LinkInfo.init(self.msg.allocator);
@@ -27,12 +35,25 @@ pub fn veth(self: *LinkAdd, if_name: []const u8, peer_name: []const u8) !void {
     });
 }
 
-pub fn bridge(self: *LinkAdd, br_name: []const u8) !void {
+fn bridge(self: *LinkAdd, br_name: []const u8) !void {
     try self.msg.addAttr(.{ .link_info = .{ .kind = .bridge } });
     try self.msg.addAttr(.{ .name = br_name });
 }
 
+fn applyOptions(self: *LinkAdd) !void {
+    if (self.opts.name) |val| {
+        try self.name(val);
+    }
+    if (self.opts.veth) |val| {
+        try self.veth(val[0], val[1]);
+    }
+    if (self.opts.bridge) |val| {
+        try self.bridge(val);
+    }
+}
+
 pub fn exec(self: *LinkAdd) !void {
+    try self.applyOptions();
     try self.nl.send(try self.msg.compose());
     return self.nl.recv_ack();
 }

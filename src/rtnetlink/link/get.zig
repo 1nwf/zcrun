@@ -6,19 +6,30 @@ const nalign = @import("../utils.zig").nalign;
 const linux = std.os.linux;
 
 const LinkGet = @This();
+pub const Options = struct {
+    name: ?[]const u8 = null,
+};
 
 msg: LinkMessage,
 nl: *RtNetLink,
-pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink) LinkGet {
+opts: Options,
+pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) !LinkGet {
     const msg = LinkMessage.init(allocator, .get);
-    return .{ .msg = msg, .nl = nl };
+    return .{ .msg = msg, .nl = nl, .opts = options };
 }
 
-pub fn name(self: *LinkGet, value: []const u8) !void {
+fn name(self: *LinkGet, value: []const u8) !void {
     try self.msg.addAttr(.{ .name = value });
 }
 
+fn applyOptions(self: *LinkGet) !void {
+    if (self.opts.name) |val| {
+        try self.name(val);
+    }
+}
+
 pub fn exec(self: *LinkGet) !LinkMessage {
+    try self.applyOptions();
     try self.nl.send(try self.msg.compose());
     var buff: [512]u8 = undefined;
     const n = try self.nl.recv(&buff);

@@ -5,38 +5,66 @@ const linux = std.os.linux;
 
 const LinkSet = @This();
 
+pub const Options = struct {
+    index: c_int,
+    name: ?[]const u8 = null,
+    master: ?c_int = null,
+    up: bool = false,
+    down: bool = false,
+    nomaster: bool = false,
+};
+
 msg: LinkMessage,
 nl: *RtNetLink,
-pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, index: c_int) LinkSet {
+opts: Options,
+pub fn init(allocator: std.mem.Allocator, nl: *RtNetLink, options: Options) !LinkSet {
     var msg = LinkMessage.init(allocator, .set);
-    msg.msg.header.index = index;
-
-    return .{ .msg = msg, .nl = nl };
+    msg.msg.header.index = options.index;
+    return .{ .msg = msg, .nl = nl, .opts = options };
 }
 
-pub fn up(self: *LinkSet) void {
+fn up(self: *LinkSet) void {
     self.msg.msg.header.flags |= LinkMessage.Flags.UP;
     self.msg.msg.header.change |= LinkMessage.Flags.UP;
 }
 
-pub fn down(self: *LinkSet) void {
+fn down(self: *LinkSet) void {
     self.msg.msg.header.flags &= ~LinkMessage.Flags.UP;
     self.msg.msg.header.change |= LinkMessage.Flags.UP;
 }
 
-pub fn name(self: *LinkSet, value: []const u8) !void {
+fn name(self: *LinkSet, value: []const u8) !void {
     try self.msg.addAttr(.{ .name = value });
 }
 
-pub fn master(self: *LinkSet, idx: c_int) !void {
+fn master(self: *LinkSet, idx: c_int) !void {
     try self.msg.addAttr(.{ .master = @intCast(idx) });
 }
 
-pub fn nomaster(self: *LinkSet) !void {
+fn nomaster(self: *LinkSet) !void {
     try self.msg.addAttr(.{ .master = 0 });
 }
 
+fn applyOptions(self: *LinkSet) !void {
+    if (self.opts.up) {
+        self.up();
+    } else if (self.opts.down) {
+        self.down();
+    }
+
+    if (self.opts.name) |val| {
+        try self.name(val);
+    }
+
+    if (self.opts.master) |val| {
+        try self.master(val);
+    } else if (self.opts.nomaster) {
+        try self.nomaster();
+    }
+}
+
 pub fn exec(self: *LinkSet) !void {
+    try self.applyOptions();
     try self.nl.send(try self.msg.compose());
     return self.nl.recv_ack();
 }
