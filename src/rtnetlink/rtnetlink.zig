@@ -60,6 +60,7 @@ pub const NlMsgError = struct {
 pub fn handle_ack(msg: NlMsgError) !void {
     const code: linux.E = @enumFromInt(-1 * msg.err);
     if (code != .SUCCESS) {
+        log.info("err: {}", .{code});
         return error.Error;
     }
 }
