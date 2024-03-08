@@ -30,7 +30,15 @@ fn applyOptions(self: *LinkGet) !void {
 
 pub fn exec(self: *LinkGet) !LinkMessage {
     try self.applyOptions();
-    try self.nl.send(try self.msg.compose());
+
+    const data = try self.msg.compose();
+    defer self.msg.allocator.free(data);
+
+    try self.nl.send(data);
+    return self.recv();
+}
+
+fn recv(self: *LinkGet) !LinkMessage {
     var buff: [512]u8 = undefined;
     const n = try self.nl.recv(&buff);
     var start: usize = 0;

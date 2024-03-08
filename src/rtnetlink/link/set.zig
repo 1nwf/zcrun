@@ -65,6 +65,10 @@ fn applyOptions(self: *LinkSet) !void {
 
 pub fn exec(self: *LinkSet) !void {
     try self.applyOptions();
-    try self.nl.send(try self.msg.compose());
+
+    const data = try self.msg.compose();
+    defer self.msg.allocator.free(data);
+
+    try self.nl.send(data);
     return self.nl.recv_ack();
 }
