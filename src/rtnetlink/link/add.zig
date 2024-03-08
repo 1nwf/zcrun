@@ -27,6 +27,11 @@ pub fn veth(self: *LinkAdd, if_name: []const u8, peer_name: []const u8) !void {
     });
 }
 
+pub fn bridge(self: *LinkAdd, br_name: []const u8) !void {
+    try self.msg.addAttr(.{ .link_info = .{ .kind = .bridge } });
+    try self.msg.addAttr(.{ .name = br_name });
+}
+
 pub fn exec(self: *LinkAdd) !void {
     try self.nl.send(try self.msg.compose());
     return self.nl.recv_ack();

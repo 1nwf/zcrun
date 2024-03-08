@@ -2,13 +2,18 @@ const std = @import("std");
 const link = @import("../link.zig");
 const linux = std.os.linux;
 const nalign = @import("../../utils.zig").nalign;
+const c = @cImport({
+    @cInclude("linux/if_link.h");
+    @cInclude("linux/veth.h");
+});
 
-const LinkInfoKind: linux.IFLA = @enumFromInt(1);
-const LinkInfoData: linux.IFLA = @enumFromInt(2);
-const VethInfoPeer: linux.IFLA = @enumFromInt(1);
+const LinkInfoKind: linux.IFLA = @enumFromInt(c.IFLA_INFO_KIND);
+const LinkInfoData: linux.IFLA = @enumFromInt(c.IFLA_INFO_DATA);
+const VethInfoPeer: linux.IFLA = @enumFromInt(c.VETH_INFO_PEER);
 
 const Kind = enum {
     veth,
+    bridge,
 
     fn size(self: Kind) usize {
         return nalign(@tagName(self).len + @sizeOf(linux.rtattr));
@@ -54,7 +59,7 @@ const Info = union(enum) {
 };
 
 pub const LinkInfoAttr = struct {
-    info: Info,
+    info: ?Info = null,
     kind: Kind,
 
     pub fn encode(self: LinkInfoAttr, buff: []u8) anyerror!usize {
@@ -69,12 +74,17 @@ pub const LinkInfoAttr = struct {
         @memcpy(buff[start .. start + @sizeOf(linux.rtattr)], std.mem.asBytes(&hdr3));
         start += @sizeOf(linux.rtattr);
 
-        _ = try self.info.encode(buff[start..]);
+        if (self.info) |info| {
+            _ = try info.encode(buff[start..]);
+        }
         return len;
     }
 
     pub fn size(self: LinkInfoAttr) usize {
-        const len = self.info.size() + @sizeOf(linux.rtattr) + self.kind.size();
+        var len = @sizeOf(linux.rtattr) + self.kind.size();
+        if (self.info) |info| {
+            len += info.size();
+        }
         return nalign(len);
     }
 };
