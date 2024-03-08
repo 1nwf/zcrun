@@ -90,7 +90,7 @@ pub const LinkInfo = struct {
 };
 
 hdr: linux.nlmsghdr,
-link_message: LinkInfo,
+msg: LinkInfo,
 allocator: std.mem.Allocator,
 
 pub fn init(allocator: std.mem.Allocator, req_type: RequestType) Link {
@@ -102,13 +102,13 @@ pub fn init(allocator: std.mem.Allocator, req_type: RequestType) Link {
             .pid = 0,
             .seq = 0,
         },
-        .link_message = LinkInfo.init(allocator),
+        .msg = LinkInfo.init(allocator),
         .allocator = allocator,
     };
 }
 
 pub fn compose(self: *Link) ![]u8 {
-    const size: usize = self.link_message.size() + @sizeOf(linux.nlmsghdr);
+    const size: usize = self.msg.size() + @sizeOf(linux.nlmsghdr);
 
     var buff = try self.allocator.alloc(u8, size);
     self.hdr.len = @intCast(size);
@@ -118,11 +118,11 @@ pub fn compose(self: *Link) ![]u8 {
     var start: usize = 0;
     @memcpy(buff[0..@sizeOf(linux.nlmsghdr)], std.mem.asBytes(&self.hdr));
     start += @sizeOf(linux.nlmsghdr);
-    try self.link_message.encode(buff[start..]);
+    try self.msg.encode(buff[start..]);
 
     return buff;
 }
 
 pub fn addAttr(self: *Link, attr: LinkAttribute) !void {
-    try self.link_message.attrs.append(attr);
+    try self.msg.attrs.append(attr);
 }
