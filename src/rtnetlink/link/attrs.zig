@@ -6,13 +6,11 @@ const LinkInfoAttr = @import("attrs/link_info.zig").LinkInfoAttr;
 
 pub const LinkAttribute = union(enum) {
     name: []const u8,
-    address: [4]u8,
     link_info: LinkInfoAttr,
 
     pub fn size(self: LinkAttribute) usize {
         const val_len = switch (self) {
             .name => |val| val.len + 1,
-            .address => |val| val.len,
             .link_info => |val| val.size(),
         };
 
@@ -22,7 +20,6 @@ pub const LinkAttribute = union(enum) {
     fn getAttr(self: LinkAttribute) linux.rtattr {
         var attr: linux.rtattr = switch (self) {
             .name => |val| .{ .len = @intCast(val.len + 1), .type = .IFNAME },
-            .address => |val| .{ .len = @intCast(val.len), .type = .ADDRESS },
             .link_info => |val| .{ .len = @intCast(val.size()), .type = .LINKINFO },
         };
 
@@ -45,7 +42,6 @@ pub const LinkAttribute = union(enum) {
                 return val.len + 1;
             },
             .link_info => |val| try val.encode(buff),
-            else => @panic("todo"),
         };
     }
 };
