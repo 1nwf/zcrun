@@ -67,18 +67,25 @@ pub fn handle_ack(msg: NlMsgError) !void {
     }
 }
 
-pub fn linkAdd(self: *Self, options: link.LinkAdd.Options) link.LinkAdd {
-    return link.LinkAdd.init(self.allocator, self, options);
+pub fn linkAdd(self: *Self, options: link.LinkAdd.Options) !void {
+    var la = link.LinkAdd.init(self.allocator, self, options);
+    defer la.msg.deinit();
+    return la.exec();
 }
 
-pub fn linkGet(self: *Self, options: link.LinkGet.Options) link.LinkGet {
-    return link.LinkGet.init(self.allocator, self, options);
+pub fn linkGet(self: *Self, options: link.LinkGet.Options) !link.LinkMessage {
+    var lg = link.LinkGet.init(self.allocator, self, options);
+    defer lg.msg.deinit();
+    return lg.exec();
 }
 
-pub fn linkSet(self: *Self, options: link.LinkSet.Options) link.LinkSet {
-    return link.LinkSet.init(self.allocator, self, options);
+pub fn linkSet(self: *Self, options: link.LinkSet.Options) !void {
+    var ls = link.LinkSet.init(self.allocator, self, options);
+    defer ls.msg.deinit();
+    try ls.exec();
 }
 
-pub fn addrAdd(self: *Self, options: addr.AddrAdd.Options) addr.AddrAdd {
-    return addr.AddrAdd.init(self.allocator, self, options);
+pub fn addrAdd(self: *Self, options: addr.AddrAdd.Options) !void {
+    var a = addr.AddrAdd.init(self.allocator, self, options);
+    return a.exec();
 }
