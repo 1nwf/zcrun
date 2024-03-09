@@ -45,6 +45,11 @@ pub fn setupContainerNetNs(self: *Net, cid: []const u8) !void {
 pub fn setUpBridge(self: *Net) !void {
     if (self.isBridgeUp()) return;
     try self.nl.linkAdd(.{ .bridge = utils.BRIDGE_NAME });
+
+    const bridge = try self.nl.linkGet(.{ .name = utils.BRIDGE_NAME });
+    try self.nl.linkSet(.{ .index = bridge.msg.header.index, .up = true });
+    try self.nl.addrAdd(.{ .index = bridge.msg.header.index, .addr = .{ 10, 0, 0, 1 }, .prefix_len = 24 }); //
+
     // TODO: get default network interface
     try self.if_enable_snat("eth0");
 }
@@ -86,10 +91,7 @@ pub fn createVethPair(self: *Net, cid: []const u8) !void {
 
     // attach veth0 to host bridge
     const bridge = try self.nl.linkGet(.{ .name = utils.BRIDGE_NAME });
-    try self.nl.linkSet(.{ .index = veth0_info.msg.header.index, .master = bridge.msg.header.index });
-
-    // TODO: use random private ip addrs that are not used
-    try self.nl.addrAdd(.{ .index = veth0_info.msg.header.index, .addr = .{ 10, 0, 0, 1 }, .prefix_len = 24 });
+    try self.nl.linkSet(.{ .index = veth0_info.msg.header.index, .master = bridge.msg.header.index, .up = true });
 
     var veth1_info = try self.nl.linkGet(.{ .name = veth1 });
     defer veth1_info.msg.deinit();
@@ -107,5 +109,7 @@ pub fn createVethPair(self: *Net, cid: []const u8) !void {
     var cveth1_info = try nl.linkGet(.{ .name = veth1 });
     defer cveth1_info.msg.deinit();
 
+    try nl.linkSet(.{ .index = cveth1_info.msg.header.index, .up = true });
+    // TODO: use random private ip addrs that are not used
     try nl.addrAdd(.{ .index = cveth1_info.msg.header.index, .addr = .{ 10, 0, 0, 2 }, .prefix_len = 24 });
 }
