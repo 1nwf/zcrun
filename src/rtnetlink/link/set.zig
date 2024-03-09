@@ -12,6 +12,7 @@ pub const Options = struct {
     up: bool = false,
     down: bool = false,
     nomaster: bool = false,
+    netns_fd: ?linux.fd_t = null,
 };
 
 msg: LinkMessage,
@@ -60,6 +61,10 @@ fn applyOptions(self: *LinkSet) !void {
         try self.master(val);
     } else if (self.opts.nomaster) {
         try self.nomaster();
+    }
+
+    if (self.opts.netns_fd) |fd| {
+        try self.msg.addAttr(.{ .netns_fd = fd });
     }
 }
 

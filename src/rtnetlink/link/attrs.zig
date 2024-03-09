@@ -9,12 +9,13 @@ pub const LinkAttribute = union(enum) {
     name: []const u8,
     master: u32,
     link_info: LinkInfoAttr,
+    netns_fd: linux.fd_t,
 
     pub fn size(self: LinkAttribute) usize {
         const val_len = switch (self) {
             .name => |val| val.len + 1,
             .link_info => |val| val.size(),
-            .master => 4,
+            .master, .netns_fd => 4,
         };
 
         return nalign(val_len + @sizeOf(linux.rtattr));
@@ -25,6 +26,7 @@ pub const LinkAttribute = union(enum) {
             .name => |val| .{ .len = @intCast(val.len + 1), .type = .IFNAME },
             .link_info => |val| .{ .len = @intCast(val.size()), .type = .LINKINFO },
             .master => .{ .len = 4, .type = .MASTER },
+            .netns_fd => .{ .len = 4, .type = .NET_NS_FD },
         };
 
         attr.len = @intCast(std.mem.alignForward(usize, attr.len + @sizeOf(linux.rtattr), 4));
@@ -47,6 +49,10 @@ pub const LinkAttribute = union(enum) {
             },
             .link_info => |val| try val.encode(buff),
             .master => |val| {
+                @memcpy(buff[0..4], std.mem.asBytes(&val));
+                return 4;
+            },
+            .netns_fd => |val| {
                 @memcpy(buff[0..4], std.mem.asBytes(&val));
                 return 4;
             },
