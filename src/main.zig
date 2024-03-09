@@ -21,6 +21,7 @@ pub fn main() !void {
     var net = try Net.init(std.heap.page_allocator);
     try net.setUpBridge();
     try net.setupContainerNetNs(rootfs); // TODO generate unique name
+    try net.createVethPair(rootfs);
 
     const res = linux.unshare(linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS);
     try checkErr(res, error.Unshare);
