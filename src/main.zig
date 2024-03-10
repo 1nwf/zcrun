@@ -22,6 +22,7 @@ pub fn main() !void {
     try net.setUpBridge();
     try net.setupContainerNetNs(rootfs); // TODO generate unique name
     try net.createVethPair(rootfs);
+    try net.setupDnsResolverConfig(rootfs);
 
     const res = linux.unshare(linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS);
     try checkErr(res, error.Unshare);

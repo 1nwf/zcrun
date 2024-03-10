@@ -119,3 +119,12 @@ fn linkExists(self: *Net, name: []const u8) bool {
     defer info.deinit();
     return true;
 }
+
+pub fn setupDnsResolverConfig(_: *Net, rootfs: []const u8) !void {
+    var rootfs_dir = try std.fs.cwd().openDir(rootfs, .{});
+    var etc_dir = try std.fs.cwd().openDir("/etc", .{});
+    defer rootfs_dir.close();
+    defer etc_dir.close();
+
+    try etc_dir.copyFile("resolv.conf", rootfs_dir, "etc/resolv.conf", .{});
+}
