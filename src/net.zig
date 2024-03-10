@@ -112,6 +112,13 @@ pub fn createVethPair(self: *Net, cid: []const u8) !void {
     // TODO: use random private ip addrs that are not used
     try nl.addrAdd(.{ .index = cveth1_info.msg.header.index, .addr = .{ 10, 0, 0, 2 }, .prefix_len = 24 });
     try nl.routeAdd(.{ .gateway = .{ 10, 0, 0, 1 } });
+
+    // setup container loopback interface
+    var lo = try nl.linkGet(.{ .name = "lo" });
+    defer lo.deinit();
+
+    try nl.addrAdd(.{ .index = lo.msg.header.index, .addr = .{ 127, 0, 0, 1 }, .prefix_len = 8 });
+    try nl.linkSet(.{ .index = lo.msg.header.index, .up = true });
 }
 
 fn linkExists(self: *Net, name: []const u8) bool {
