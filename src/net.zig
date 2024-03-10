@@ -112,4 +112,5 @@ pub fn createVethPair(self: *Net, cid: []const u8) !void {
     try nl.linkSet(.{ .index = cveth1_info.msg.header.index, .up = true });
     // TODO: use random private ip addrs that are not used
     try nl.addrAdd(.{ .index = cveth1_info.msg.header.index, .addr = .{ 10, 0, 0, 2 }, .prefix_len = 24 });
+    try nl.routeAdd(.{ .gateway = .{ 10, 0, 0, 1 } });
 }
