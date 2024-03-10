@@ -4,7 +4,7 @@ const nalign = @import("../utils.zig").nalign;
 const c = @cImport(@cInclude("linux/rtnetlink.h"));
 const AddressAttr = @import("attrs.zig").AddressAttr;
 
-const AddressScope = enum(u8) {
+pub const AddressScope = enum(u8) {
     Universe = c.RT_SCOPE_UNIVERSE,
     Site = c.RT_SCOPE_SITE,
     Link = c.RT_SCOPE_LINK,

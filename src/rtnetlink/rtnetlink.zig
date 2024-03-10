@@ -3,6 +3,7 @@ const log = std.log;
 const linux = std.os.linux;
 const link = @import("link.zig");
 const addr = @import("address.zig");
+const route = @import("route.zig");
 
 const Self = @This();
 
@@ -88,4 +89,10 @@ pub fn linkSet(self: *Self, options: link.LinkSet.Options) !void {
 pub fn addrAdd(self: *Self, options: addr.AddrAdd.Options) !void {
     var a = addr.AddrAdd.init(self.allocator, self, options);
     return a.exec();
+}
+
+pub fn routeAdd(self: *Self, options: route.RouteAdd.Options) !void {
+    var ls = route.RouteAdd.init(self.allocator, self, options);
+    defer ls.msg.deinit();
+    try ls.exec();
 }
