@@ -43,10 +43,11 @@ pub fn setupContainerNetNs(self: *Net, cid: []const u8) !void {
 }
 
 pub fn setUpBridge(self: *Net) !void {
-    if (self.isBridgeUp()) return;
+    if (self.linkExists(utils.BRIDGE_NAME)) return;
     try self.nl.linkAdd(.{ .bridge = utils.BRIDGE_NAME });
 
-    const bridge = try self.nl.linkGet(.{ .name = utils.BRIDGE_NAME });
+    var bridge = try self.nl.linkGet(.{ .name = utils.BRIDGE_NAME });
+    defer bridge.deinit();
     try self.nl.linkSet(.{ .index = bridge.msg.header.index, .up = true });
     try self.nl.addrAdd(.{ .index = bridge.msg.header.index, .addr = .{ 10, 0, 0, 1 }, .prefix_len = 24 }); //
 
@@ -57,14 +58,6 @@ pub fn setUpBridge(self: *Net) !void {
 fn setNetNs(fd: linux.fd_t) !void {
     const res = linux.syscall2(.setns, @intCast(fd), linux.CLONE.NEWNET);
     try checkErr(res, error.NetNsFailed);
-}
-
-fn isBridgeUp(self: *Net) bool {
-    if (self.nl.linkGet(.{ .name = utils.BRIDGE_NAME })) |_| {
-        return true;
-    } else |_| {
-        return false;
-    }
 }
 
 fn if_enable_snat(self: *Net, if_name: []const u8) !void {
@@ -78,28 +71,34 @@ fn if_enable_snat(self: *Net, if_name: []const u8) !void {
 pub fn createVethPair(self: *Net, cid: []const u8) !void {
     const veth0 = try std.mem.concat(self.allocator, u8, &.{ "veth0-", cid });
     const veth1 = try std.mem.concat(self.allocator, u8, &.{ "veth1-", cid });
+    defer {
+        self.allocator.free(veth0);
+        self.allocator.free(veth1);
+    }
 
-    if (self.nl.linkGet(.{ .name = veth0 })) |_| {
-        return; // veth pair exists, so return
-    } else |_| {}
+    if (self.linkExists(veth0)) return;
     log.info("creating veth pair: {s} -- {s}", .{ veth0, veth1 });
 
     try self.nl.linkAdd(.{ .veth = .{ veth0, veth1 } });
 
     var veth0_info = try self.nl.linkGet(.{ .name = veth0 });
-    defer veth0_info.msg.deinit();
+    defer veth0_info.deinit();
 
     // attach veth0 to host bridge
-    const bridge = try self.nl.linkGet(.{ .name = utils.BRIDGE_NAME });
+    var bridge = try self.nl.linkGet(.{ .name = utils.BRIDGE_NAME });
+    defer bridge.deinit();
     try self.nl.linkSet(.{ .index = veth0_info.msg.header.index, .master = bridge.msg.header.index, .up = true });
 
     var veth1_info = try self.nl.linkGet(.{ .name = veth1 });
-    defer veth1_info.msg.deinit();
+    defer veth1_info.deinit();
 
     // move other veth interface to container netns
     const cns_mount = try std.mem.concat(self.allocator, u8, &.{ NETNS_PATH, cid });
     const netns = try std.fs.openFileAbsolute(cns_mount, .{});
-    defer netns.close();
+    defer {
+        self.allocator.free(cns_mount);
+        netns.close();
+    }
     try self.nl.linkSet(.{ .index = veth1_info.msg.header.index, .netns_fd = netns.handle });
 
     try setNetNs(netns.handle);
@@ -107,10 +106,16 @@ pub fn createVethPair(self: *Net, cid: []const u8) !void {
     var nl = try NetLink.init(self.allocator);
     defer nl.deinit();
     var cveth1_info = try nl.linkGet(.{ .name = veth1 });
-    defer cveth1_info.msg.deinit();
+    defer cveth1_info.deinit();
 
     try nl.linkSet(.{ .index = cveth1_info.msg.header.index, .up = true });
     // TODO: use random private ip addrs that are not used
     try nl.addrAdd(.{ .index = cveth1_info.msg.header.index, .addr = .{ 10, 0, 0, 2 }, .prefix_len = 24 });
     try nl.routeAdd(.{ .gateway = .{ 10, 0, 0, 1 } });
+}
+
+fn linkExists(self: *Net, name: []const u8) bool {
+    var info = self.nl.linkGet(.{ .name = name }) catch return false;
+    defer info.deinit();
+    return true;
 }
