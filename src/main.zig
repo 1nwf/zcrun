@@ -2,47 +2,21 @@ const std = @import("std");
 const log = std.log;
 const linux = std.os.linux;
 const Net = @import("net.zig");
+const Container = @import("container.zig");
 
 const utils = @import("utils.zig");
 const checkErr = utils.checkErr;
 
 pub fn main() !void {
     const args = std.os.argv;
-    if (args.len < 2) {
-        log.info("missing rootfs path", .{});
+    if (args.len < 3) {
+        log.info("invalid args", .{});
         return;
     }
 
     const rootfs = std.mem.span(args[1]);
+    const cmd = std.mem.span(args[2]);
 
-    var net = try Net.init(std.heap.page_allocator);
-    try net.setUpBridge();
-    try net.setupContainerNetNs(rootfs); // TODO generate unique name
-    try net.createVethPair(rootfs);
-    try net.setupDnsResolverConfig(rootfs);
-
-    const res = linux.unshare(linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS);
-    try checkErr(res, error.Unshare);
-
-    // must create a child process to be in the new PID namespace
-    const pid = try std.os.fork();
-    if (pid == 0) {
-        try run_container(rootfs);
-    } else {
-        const wait_res = std.os.waitpid(pid, 0);
-        if (wait_res.status != 0) {
-            log.err("error while running container", .{});
-        }
-    }
-}
-
-fn run_container(rootfs: []const u8) !void {
-    try checkErr(linux.chroot(@ptrCast(rootfs)), error.Chroot);
-    try checkErr(linux.chdir("/"), error.Chdir);
-    try checkErr(linux.mount("proc", "proc", "proc", 0, 0), error.Mount);
-
-    const name = "container";
-    _ = linux.syscall2(.sethostname, @intFromPtr(&name[0]), name.len);
-
-    std.process.execv(std.heap.page_allocator, &.{"/bin/sh"}) catch return error.ExecErr;
+    var container = try Container.init(rootfs, cmd, std.heap.page_allocator);
+    try container.run();
 }
