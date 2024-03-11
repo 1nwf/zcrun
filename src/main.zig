@@ -9,12 +9,14 @@ const utils = @import("utils.zig");
 const checkErr = utils.checkErr;
 
 pub fn main() !void {
-    const cmd = try args.parseArgs(std.heap.page_allocator);
+    var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const allocator = arena_allocator.allocator();
+    const cmd = try args.parseArgs(allocator);
 
     switch (cmd) {
         .run => |r| {
             try zcrunInit();
-            var container = try Container.init(r.name, r.rootfs_path, r.cmd, std.heap.page_allocator);
+            var container = try Container.init(r.name, r.rootfs_path, r.cmd, allocator);
             try container.run();
         },
         .help => {
