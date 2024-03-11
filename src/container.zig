@@ -8,25 +8,29 @@ const checkErr = @import("utils.zig").checkErr;
 const Container = @This();
 
 rootfs: []const u8,
+name: []const u8,
 cmd: []const u8,
+
 net: Net,
 cgroup: Cgroup,
 allocator: std.mem.Allocator,
 
-pub fn init(rootfs: []const u8, cmd: []const u8, allocator: std.mem.Allocator) !Container {
+pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: std.mem.Allocator) !Container {
     return .{
+        .name = name,
         .rootfs = rootfs,
         .cmd = cmd,
+
         .net = try Net.init(allocator),
         .allocator = allocator,
-        .cgroup = try Cgroup.init(rootfs, allocator),
+        .cgroup = try Cgroup.init(name, allocator),
     };
 }
 
 fn initNamespaces(self: *Container) !void {
     try self.net.setUpBridge();
-    try self.net.setupContainerNetNs(self.rootfs); // TODO generate unique name
-    try self.net.createVethPair(self.rootfs);
+    try self.net.setupContainerNetNs(self.name); // TODO generate unique name
+    try self.net.createVethPair(self.name);
     try self.net.setupDnsResolverConfig(self.rootfs);
 
     const res = linux.unshare(linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS);
