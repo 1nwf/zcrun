@@ -12,3 +12,24 @@ pub fn checkErr(val: usize, err: anyerror) !void {
         return err;
     }
 }
+
+pub fn createDirIfNotExists(path: []const u8) !bool {
+    std.fs.makeDirAbsolute(path) catch |e| {
+        return switch (e) {
+            error.PathAlreadyExists => false,
+            else => e,
+        };
+    };
+    return true;
+}
+
+pub fn createFileIfNotExists(path: []const u8) !bool {
+    const f = std.fs.createFileAbsolute(path, .{ .exclusive = true }) catch |e| {
+        return switch (e) {
+            error.PathAlreadyExists => false,
+            else => e,
+        };
+    };
+    f.close();
+    return true;
+}

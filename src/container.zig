@@ -2,6 +2,7 @@ const std = @import("std");
 const log = std.log;
 const linux = std.os.linux;
 const Net = @import("net.zig");
+const Cgroup = @import("cgroup.zig");
 const checkErr = @import("utils.zig").checkErr;
 
 const Container = @This();
@@ -9,6 +10,7 @@ const Container = @This();
 rootfs: []const u8,
 cmd: []const u8,
 net: Net,
+cgroup: Cgroup,
 allocator: std.mem.Allocator,
 
 pub fn init(rootfs: []const u8, cmd: []const u8, allocator: std.mem.Allocator) !Container {
@@ -17,6 +19,7 @@ pub fn init(rootfs: []const u8, cmd: []const u8, allocator: std.mem.Allocator) !
         .cmd = cmd,
         .net = try Net.init(allocator),
         .allocator = allocator,
+        .cgroup = try Cgroup.init(rootfs, allocator),
     };
 }
 
