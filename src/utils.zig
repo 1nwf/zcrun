@@ -8,7 +8,11 @@ pub const BRIDGE_NAME = "zcrun0";
 
 pub fn checkErr(val: usize, err: anyerror) !void {
     const e = linux.getErrno(val);
-    if (e != .SUCCESS) {
+    // we ignore busy errors here because this fn is used
+    // to check the error of mount sycalls.
+    // busy is returned when the fs being mounted is currently in use
+    // which means that it was previously maounted
+    if (e != .SUCCESS and e != .BUSY) {
         std.log.err("err: {}", .{e});
         return err;
     }

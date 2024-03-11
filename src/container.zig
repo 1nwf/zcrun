@@ -27,20 +27,30 @@ pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: st
     };
 }
 
-fn initNamespaces(self: *Container) !void {
+fn initNetwork(self: *Container) !void {
     try self.net.setUpBridge();
-    try self.net.setupContainerNetNs(self.name); // TODO generate unique name
+    try self.net.setupContainerNetNs(self.name);
     try self.net.createVethPair(self.name);
     try self.net.setupDnsResolverConfig(self.rootfs);
+}
 
+fn initNamespaces(self: *Container) !void {
+    try self.initNetwork();
     const res = linux.unshare(linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS);
     try checkErr(res, error.Unshare);
+}
+
+fn mountVfs(_: *Container) !void {
+    try checkErr(linux.mount("proc", "proc", "proc", 0, 0), error.MountProc);
+    try checkErr(linux.mount("tmpfs", "tmp", "tmpfs", 0, 0), error.MountTmpFs);
+    try checkErr(linux.mount("sysfs", "sys", "sysfs", 0, 0), error.MountSysFs);
 }
 
 fn setupRootDir(self: *Container) !void {
     try checkErr(linux.chroot(@ptrCast(self.rootfs)), error.Chroot);
     try checkErr(linux.chdir("/"), error.Chdir);
-    try checkErr(linux.mount("proc", "proc", "proc", 0, 0), error.Mount);
+    try self.mountVfs();
+
     const name = "container";
     _ = linux.syscall2(.sethostname, @intFromPtr(&name[0]), name.len);
 }
@@ -53,7 +63,7 @@ pub fn run(self: *Container) !void {
     const pid = try std.os.fork();
     if (pid == 0) {
         try self.setupRootDir();
-        std.process.execv(std.heap.page_allocator, &.{self.cmd}) catch return error.ExecErr;
+        std.process.execv(self.allocator, &.{self.cmd}) catch return error.ExecErr;
     } else {
         const wait_res = std.os.waitpid(pid, 0);
         if (wait_res.status != 0) {
