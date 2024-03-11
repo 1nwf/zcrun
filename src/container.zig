@@ -42,6 +42,7 @@ fn setupRootDir(self: *Container) !void {
 }
 
 pub fn run(self: *Container) !void {
+    try self.cgroup.enterCgroup();
     try self.initNamespaces();
 
     // must create a child process to enter the new PID namespace
