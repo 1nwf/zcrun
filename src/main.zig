@@ -14,9 +14,6 @@ pub fn main() !void {
     }
 
     const rootfs = std.mem.span(args[1]);
-    if (args.len > 2 and std.mem.eql(u8, std.mem.span(args[2]), "child")) {
-        return childfn(rootfs);
-    }
 
     var net = try Net.init(std.heap.page_allocator);
     try net.setUpBridge();
@@ -27,11 +24,19 @@ pub fn main() !void {
     const res = linux.unshare(linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS);
     try checkErr(res, error.Unshare);
 
-    var child = std.ChildProcess.init(&.{ "/proc/self/exe", rootfs, "child" }, std.heap.page_allocator);
-    _ = try child.spawnAndWait();
+    // must create a child process to be in the new PID namespace
+    const pid = try std.os.fork();
+    if (pid == 0) {
+        try run_container(rootfs);
+    } else {
+        const wait_res = std.os.waitpid(pid, 0);
+        if (wait_res.status != 0) {
+            log.err("error while running container", .{});
+        }
+    }
 }
 
-fn childfn(rootfs: []const u8) !void {
+fn run_container(rootfs: []const u8) !void {
     try checkErr(linux.chroot(@ptrCast(rootfs)), error.Chroot);
     try checkErr(linux.chdir("/"), error.Chdir);
     try checkErr(linux.mount("proc", "proc", "proc", 0, 0), error.Mount);
