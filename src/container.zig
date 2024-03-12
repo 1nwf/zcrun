@@ -51,8 +51,7 @@ fn setupRootDir(self: *Container) !void {
     try checkErr(linux.chdir("/"), error.Chdir);
     try self.mountVfs();
 
-    const name = "container";
-    _ = linux.syscall2(.sethostname, @intFromPtr(&name[0]), name.len);
+    _ = linux.syscall2(.sethostname, @intFromPtr(self.name.ptr), self.name.len);
 }
 
 pub fn run(self: *Container) !void {
