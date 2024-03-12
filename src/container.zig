@@ -28,8 +28,8 @@ pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: st
 }
 
 fn initNetwork(self: *Container) !void {
-    try self.net.setUpBridge();
     try self.net.setupContainerNetNs(self.name);
+    try self.net.setUpBridge();
     try self.net.createVethPair(self.name);
     try self.net.setupDnsResolverConfig(self.rootfs);
 }
@@ -56,8 +56,8 @@ fn setupRootDir(self: *Container) !void {
 }
 
 pub fn run(self: *Container) !void {
-    try self.cgroup.enterCgroup();
     try self.initNamespaces();
+    try self.cgroup.enterCgroup();
 
     // must create a child process to enter the new PID namespace
     const pid = try std.os.fork();
