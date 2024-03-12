@@ -5,7 +5,8 @@ const c = @cImport(@cInclude("linux/rtnetlink.h"));
 comptime {
     std.debug.assert(@sizeOf(std.os.linux.rtattr) == @sizeOf(RtAttr));
 }
-const RtAttr = packed struct {
+
+pub const RtAttr = packed struct {
     len: u16,
     type: AttrType,
 };
@@ -43,10 +44,12 @@ pub const AttrType = enum(u16) {
 // TODO: support IPv6
 pub const Attr = union(enum) {
     gateway: [4]u8,
+    output_if: u32,
 
     fn getAttr(self: Attr) RtAttr {
         var attr: RtAttr = switch (self) {
             .gateway => |val| .{ .len = val.len, .type = .Gateway },
+            .output_if => .{ .len = 4, .type = .Oif },
         };
 
         attr.len = @intCast(nalign(attr.len + @sizeOf(RtAttr)));
@@ -55,7 +58,8 @@ pub const Attr = union(enum) {
 
     pub fn size(self: Attr) usize {
         const len = switch (self) {
-            inline else => |val| val.len,
+            .gateway => |val| val.len,
+            .output_if => 4,
         };
         return nalign(len + @sizeOf(RtAttr));
     }
@@ -69,9 +73,13 @@ pub const Attr = union(enum) {
 
     inline fn encodeVal(self: Attr, buff: []u8) !usize {
         return switch (self) {
-            inline else => |val| {
+            .gateway => |val| {
                 @memcpy(buff[0..val.len], &val);
                 return val.len;
+            },
+            .output_if => |val| {
+                @memcpy(buff[0..4], std.mem.asBytes(&val));
+                return 4;
             },
         };
     }

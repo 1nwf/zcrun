@@ -45,7 +45,6 @@ pub fn recv_ack(self: *Self) !void {
     }
 
     const header = std.mem.bytesAsValue(linux.nlmsghdr, buff[0..@sizeOf(linux.nlmsghdr)]);
-    log.info("header: {}", .{header});
     if (header.type == .DONE) {
         return;
     } else if (header.type == .ERROR) { // ACK/NACK response
@@ -95,4 +94,11 @@ pub fn routeAdd(self: *Self, options: route.RouteAdd.Options) !void {
     var ls = route.RouteAdd.init(self.allocator, self, options);
     defer ls.msg.deinit();
     try ls.exec();
+}
+
+/// get all ipv4 routes
+pub fn routeGet(self: *Self) ![]route.RouteMessage {
+    var ls = route.RouteGet.init(self.allocator, self);
+    defer ls.msg.deinit();
+    return ls.exec();
 }
