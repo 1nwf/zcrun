@@ -28,6 +28,7 @@ pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: st
 }
 
 fn initNetwork(self: *Container) !void {
+    try self.net.enableNat();
     try self.net.setupContainerNetNs(self.name);
     try self.net.setUpBridge();
     try self.net.createVethPair(self.name);

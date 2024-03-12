@@ -50,9 +50,6 @@ pub fn setUpBridge(self: *Net) !void {
     defer bridge.deinit();
     try self.nl.linkSet(.{ .index = bridge.msg.header.index, .up = true });
     try self.nl.addrAdd(.{ .index = bridge.msg.header.index, .addr = .{ 10, 0, 0, 1 }, .prefix_len = 24 }); //
-
-    // TODO: get default network interface
-    try self.if_enable_snat("eth0");
 }
 
 fn setNetNs(fd: linux.fd_t) !void {
@@ -60,7 +57,50 @@ fn setNetNs(fd: linux.fd_t) !void {
     try checkErr(res, error.NetNsFailed);
 }
 
+/// enables snat on default interface
+/// this allows containers to access the internet
+pub fn enableNat(self: *Net) !void {
+    const default_ifname = try self.getDefaultGatewayIfName();
+    try self.if_enable_snat(default_ifname);
+}
+
+fn getDefaultGatewayIfName(self: *Net) ![]const u8 {
+    const res = try self.nl.routeGet();
+    var if_index: ?u32 = null;
+    var has_gtw = false;
+    for (res) |*msg| {
+        defer msg.deinit();
+        if (has_gtw) continue;
+        for (msg.msg.attrs.items) |attr| {
+            switch (attr) {
+                .gateway => has_gtw = true,
+                .output_if => |val| if_index = val,
+            }
+        }
+    }
+    const idx = if_index orelse return error.NotFound;
+    var if_info = try self.nl.linkGet(.{ .index = idx });
+    defer if_info.deinit();
+    var name: ?[]const u8 = null;
+    for (if_info.msg.attrs.items) |attr| {
+        switch (attr) {
+            .name => |val| {
+                name = val;
+                break;
+            },
+            else => {},
+        }
+    }
+
+    return name orelse error.NotFound;
+}
+
 fn if_enable_snat(self: *Net, if_name: []const u8) !void {
+    var check_rule = std.ChildProcess.init(&.{ "iptables", "-t", "nat", "-C", "POSTROUTING", "-o", if_name, "-j", "MASQUERADE" }, self.allocator);
+    const check_rule_res = try check_rule.spawnAndWait();
+    if (check_rule_res.Exited == 0) return;
+
+    // add rule if it doesn't exist
     var ch = std.ChildProcess.init(&.{ "iptables", "-t", "nat", "-A", "POSTROUTING", "-o", if_name, "-j", "MASQUERADE" }, self.allocator);
     const term = try ch.spawnAndWait();
     if (term.Exited != 0) {
@@ -134,4 +174,8 @@ pub fn setupDnsResolverConfig(_: *Net, rootfs: []const u8) !void {
     defer etc_dir.close();
 
     try etc_dir.copyFile("resolv.conf", rootfs_dir, "etc/resolv.conf", .{});
+}
+
+pub fn deinit(self: *Net) void {
+    self.nl.deinit();
 }
