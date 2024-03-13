@@ -98,11 +98,15 @@ fn getDefaultGatewayIfName(self: *Net) ![]const u8 {
 
 fn if_enable_snat(self: *Net, if_name: []const u8) !void {
     var check_rule = std.ChildProcess.init(&.{ "iptables", "-t", "nat", "-C", "POSTROUTING", "-o", if_name, "-j", "MASQUERADE" }, self.allocator);
+    check_rule.stdout_behavior = .Ignore;
+    check_rule.stderr_behavior = .Ignore;
     const check_rule_res = try check_rule.spawnAndWait();
     if (check_rule_res.Exited == 0) return;
 
     // add rule if it doesn't exist
     var ch = std.ChildProcess.init(&.{ "iptables", "-t", "nat", "-A", "POSTROUTING", "-o", if_name, "-j", "MASQUERADE" }, self.allocator);
+    ch.stdout_behavior = .Ignore;
+    ch.stderr_behavior = .Ignore;
     const term = try ch.spawnAndWait();
     if (term.Exited != 0) {
         return error.CmdFailed;
