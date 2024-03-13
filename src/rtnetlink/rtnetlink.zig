@@ -85,6 +85,12 @@ pub fn linkSet(self: *Self, options: link.LinkSet.Options) !void {
     try ls.exec();
 }
 
+pub fn linkDel(self: *Self, index: c_int) !void {
+    var ls = link.LinkDelete.init(self.allocator, self, index);
+    defer ls.msg.deinit();
+    try ls.exec();
+}
+
 pub fn addrAdd(self: *Self, options: addr.AddrAdd.Options) !void {
     var a = addr.AddrAdd.init(self.allocator, self, options);
     return a.exec();
