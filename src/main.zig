@@ -17,6 +17,7 @@ pub fn main() !void {
         .run => |r| {
             try zcrunInit();
             var container = try Container.init(r.name, r.rootfs_path, r.cmd, allocator);
+            defer container.deinit();
             try container.run();
         },
         .help => {

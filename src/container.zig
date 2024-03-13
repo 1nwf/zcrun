@@ -21,7 +21,7 @@ pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: st
         .rootfs = rootfs,
         .cmd = cmd,
 
-        .net = try Net.init(allocator),
+        .net = try Net.init(allocator, name),
         .allocator = allocator,
         .cgroup = try Cgroup.init(name, allocator),
     };
@@ -29,9 +29,9 @@ pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: st
 
 fn initNetwork(self: *Container) !void {
     try self.net.enableNat();
-    try self.net.setupContainerNetNs(self.name);
+    try self.net.setupContainerNetNs();
     try self.net.setUpBridge();
-    try self.net.createVethPair(self.name);
+    try self.net.createVethPair();
     try self.net.setupDnsResolverConfig(self.rootfs);
 }
 
@@ -70,4 +70,8 @@ pub fn run(self: *Container) !void {
             return error.RunFailed;
         }
     }
+}
+
+pub fn deinit(self: *Container) void {
+    self.net.deinit() catch {};
 }

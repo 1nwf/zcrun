@@ -9,19 +9,21 @@ const ip = @import("ip.zig");
 
 const NetLink = @import("rtnetlink/rtnetlink.zig");
 
+cid: []const u8,
 nl: NetLink,
 allocator: std.mem.Allocator,
 const Net = @This();
 
-pub fn init(allocator: std.mem.Allocator) !Net {
+pub fn init(allocator: std.mem.Allocator, cid: []const u8) !Net {
     return .{
+        .cid = cid,
         .nl = try NetLink.init(allocator),
         .allocator = allocator,
     };
 }
 
-pub fn setupContainerNetNs(self: *Net, cid: []const u8) !void {
-    const cns_mount = try std.mem.concat(self.allocator, u8, &.{ NETNS_PATH, cid });
+pub fn setupContainerNetNs(self: *Net) !void {
+    const cns_mount = try std.mem.concat(self.allocator, u8, &.{ NETNS_PATH, self.cid });
     defer self.allocator.free(cns_mount);
     log.info("cns_mount: {s}", .{cns_mount});
 
@@ -113,9 +115,9 @@ fn if_enable_snat(self: *Net, if_name: []const u8) !void {
     }
 }
 
-pub fn createVethPair(self: *Net, cid: []const u8) !void {
-    const veth0 = try std.mem.concat(self.allocator, u8, &.{ "veth0-", cid });
-    const veth1 = try std.mem.concat(self.allocator, u8, &.{ "veth1-", cid });
+pub fn createVethPair(self: *Net) !void {
+    const veth0 = try std.mem.concat(self.allocator, u8, &.{ "veth0-", self.cid });
+    const veth1 = try std.mem.concat(self.allocator, u8, &.{ "veth1-", self.cid });
     defer {
         self.allocator.free(veth0);
         self.allocator.free(veth1);
@@ -138,7 +140,7 @@ pub fn createVethPair(self: *Net, cid: []const u8) !void {
     defer veth1_info.deinit();
 
     // move other veth interface to container netns
-    const cns_mount = try std.mem.concat(self.allocator, u8, &.{ NETNS_PATH, cid });
+    const cns_mount = try std.mem.concat(self.allocator, u8, &.{ NETNS_PATH, self.cid });
     const netns = try std.fs.openFileAbsolute(cns_mount, .{});
     defer {
         self.allocator.free(cns_mount);
@@ -181,6 +183,14 @@ pub fn setupDnsResolverConfig(_: *Net, rootfs: []const u8) !void {
     try etc_dir.copyFile("resolv.conf", rootfs_dir, "etc/resolv.conf", .{});
 }
 
-pub fn deinit(self: *Net) void {
+pub fn deinit(self: *Net) !void {
+    // delete created veth pairs
+    // deleting one will automatically remove the other
+    const veth0_name = try std.mem.concat(self.allocator, u8, &.{ "veth0-", self.cid });
+    defer self.allocator.free(veth0_name);
+    var veth0 = try self.nl.linkGet(.{ .name = veth0_name });
+    defer veth0.deinit();
+    try self.nl.linkDel(veth0.msg.header.index);
+
     self.nl.deinit();
 }
