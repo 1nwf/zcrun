@@ -5,6 +5,7 @@ const utils = @import("utils.zig");
 const checkErr = utils.checkErr;
 const INFO_PATH = utils.INFO_PATH;
 const NETNS_PATH = utils.NETNS_PATH;
+const ip = @import("ip.zig");
 
 const NetLink = @import("rtnetlink/rtnetlink.zig");
 
@@ -150,7 +151,7 @@ pub fn createVethPair(self: *Net, cid: []const u8) !void {
 
     try nl.linkSet(.{ .index = cveth1_info.msg.header.index, .up = true });
     // TODO: use random private ip addrs that are not used
-    try nl.addrAdd(.{ .index = cveth1_info.msg.header.index, .addr = .{ 10, 0, 0, 2 }, .prefix_len = 24 });
+    try nl.addrAdd(.{ .index = cveth1_info.msg.header.index, .addr = ip.getRandomIpv4Addr(), .prefix_len = 24 });
     try nl.routeAdd(.{ .gateway = .{ 10, 0, 0, 1 } });
 
     // setup container loopback interface
