@@ -11,7 +11,13 @@ a simple linux container runtime built with zig
 - internet access inside containers using SNAT
 
 # Usage
-NOTE: make sure that ip forwarding is enabled to be able to access the internet inside containers.
+> [!NOTE]
+> make sure that ip forwarding is enabled to be able to access the internet inside containers.
+> run `sysctl net.ipv4.ip_forward` to check if it is enabled.
+> if not, run `sudo sysctl -w net.ipv4.ip_forward=1` to enable it.
+
+> [!Important]
+> zcrun must be run as root
 
 ```sh
 $ mkdir rootfs
