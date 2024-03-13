@@ -20,7 +20,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
-        .name = "container_rt",
+        .name = "zcrun",
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
