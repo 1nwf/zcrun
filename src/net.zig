@@ -164,7 +164,9 @@ pub fn createVethPair(self: *Net) !void {
     var lo = try nl.linkGet(.{ .name = "lo" });
     defer lo.deinit();
 
-    try nl.addrAdd(.{ .index = lo.msg.header.index, .addr = .{ 127, 0, 0, 1 }, .prefix_len = 8 });
+    nl.addrAdd(.{ .index = lo.msg.header.index, .addr = .{ 127, 0, 0, 1 }, .prefix_len = 8 }) catch |e| {
+        if (e != error.Exists) return e;
+    };
     try nl.linkSet(.{ .index = lo.msg.header.index, .up = true });
 }
 
