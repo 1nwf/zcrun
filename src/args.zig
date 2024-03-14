@@ -33,15 +33,19 @@ pub const help =
 
 pub fn parseArgs(allocator: std.mem.Allocator) !Args {
     var cli_args = try std.process.argsWithAllocator(allocator);
-    var args: ?Args = null;
     _ = cli_args.next(); // skip first arg
     const cmd = cli_args.next() orelse return error.InvalidArgs;
 
-    if (eql(cmd, "run")) {
-        args = .{ .run = try RunArgs.parse(&cli_args) };
-    } else if (eql(cmd, "help")) {
-        args = .help;
+    inline for (std.meta.fields(Args)) |f| {
+        if (f.type != void and !@hasDecl(f.type, "parse")) @compileError("must define parse fn");
+        if (eql(cmd, f.name)) {
+            if (f.type == void) {
+                return @unionInit(Args, f.name, {});
+            } else {
+                return @unionInit(Args, f.name, try f.type.parse(&cli_args));
+            }
+        }
     }
 
-    return args orelse return error.InvalidArgs;
+    return error.InvalidArgs;
 }
