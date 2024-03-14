@@ -4,6 +4,7 @@ const linux = std.os.linux;
 const Net = @import("net.zig");
 const Container = @import("container.zig");
 const args = @import("args.zig");
+const ps = @import("ps.zig");
 
 const utils = @import("utils.zig");
 const checkErr = utils.checkErr;
@@ -22,6 +23,14 @@ pub fn main() !void {
         },
         .help => {
             _ = try std.io.getStdOut().write(args.help);
+        },
+        .ps => {
+            const containers = try ps.runningContainers(allocator);
+            var stdout = std.io.getStdOut().writer();
+            _ = try stdout.print("Running Containers:\n", .{});
+            for (containers) |c| {
+                try c.print(stdout);
+            }
         },
     }
 }

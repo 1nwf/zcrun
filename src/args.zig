@@ -21,6 +21,7 @@ const RunArgs = struct {
 
 pub const Args = union(enum) {
     run: RunArgs,
+    ps,
     help,
 };
 
@@ -29,6 +30,9 @@ pub const help =
     \\
     \\arguments:
     \\run <name> <rootfs_path> <cmd>
+    \\ps
+    \\help
+    \\
 ;
 
 pub fn parseArgs(allocator: std.mem.Allocator) !Args {
