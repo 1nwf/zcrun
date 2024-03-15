@@ -15,7 +15,12 @@ pub fn runningContainers(allocator: std.mem.Allocator) ![]ContainerInfo {
     var info = std.ArrayList(ContainerInfo).init(allocator);
     errdefer info.deinit();
 
-    var cgroup_dir = try std.fs.openDirAbsolute(cgroup_path, .{ .iterate = true });
+    var cgroup_dir = std.fs.openDirAbsolute(cgroup_path, .{ .iterate = true }) catch |e| {
+        switch (e) {
+            error.FileNotFound => return &.{},
+            else => return e,
+        }
+    };
     defer cgroup_dir.close();
 
     var iter = cgroup_dir.iterate();
