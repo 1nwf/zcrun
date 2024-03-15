@@ -37,7 +37,7 @@ fn initNetwork(self: *Container) !void {
 
 fn initNamespaces(self: *Container) !void {
     try self.initNetwork();
-    const res = linux.unshare(linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS);
+    const res = linux.unshare(linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS | linux.CLONE.NEWIPC);
     try checkErr(res, error.Unshare);
 }
 
