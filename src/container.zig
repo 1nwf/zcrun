@@ -50,8 +50,6 @@ fn sethostname(self: *Container) void {
 pub fn run(self: *Container) !void {
     // setup network virtual interfaces and namespace
     try self.initNetwork();
-    // enter container cgroup
-    try self.cgroup.enterCgroup();
 
     var childp_args = ChildProcessArgs{ .container = self, .pipe = undefined, .uid = 0, .gid = 0 };
     try checkErr(linux.pipe(&childp_args.pipe), error.Pipe);
@@ -63,6 +61,8 @@ pub fn run(self: *Container) !void {
     try checkErr(pid, error.CloneFailed);
     std.os.close(childp_args.pipe[0]);
 
+    // enter container cgroup
+    try self.cgroup.enterCgroup(@intCast(pid));
     self.createUserRootMappings(@intCast(pid)) catch @panic("creating root user mapping failed");
 
     // signal done by writing to pipe
@@ -115,5 +115,8 @@ fn createUserRootMappings(self: *Container, pid: linux.pid_t) !void {
 }
 
 pub fn deinit(self: *Container) void {
-    self.net.deinit() catch {};
+    self.cgroup.deinit() catch |e| {
+        log.err("cgroup deinit failed: {}", .{e});
+    };
+    self.net.deinit() catch log.err("net deinit failed", .{});
 }

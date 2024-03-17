@@ -43,11 +43,16 @@ pub fn setResourceMax(self: *Cgroup, resource: Resource, limit: []const u8) !voi
     std.debug.assert(try file.write(limit) == limit.len);
 }
 
-pub fn enterCgroup(self: *Cgroup) !void {
+pub fn enterCgroup(self: *Cgroup, pid: linux.pid_t) !void {
     const cgroup_path = try std.mem.concat(self.allocator, u8, &.{ utils.CGROUP_PATH, "zcrun/", self.cid, "/cgroup.procs" });
     defer self.allocator.free(cgroup_path);
-    const pid = linux.getpid();
     const file = try std.fs.openFileAbsolute(cgroup_path, .{ .mode = .write_only });
     defer file.close();
     try file.writer().print("{}", .{pid});
+}
+
+pub fn deinit(self: *Cgroup) !void {
+    const path = try std.mem.concat(self.allocator, u8, &.{ utils.CGROUP_PATH ++ "zcrun/", self.cid });
+    defer self.allocator.free(path);
+    try std.fs.deleteDirAbsolute(path);
 }
