@@ -1,10 +1,11 @@
 const std = @import("std");
 const log = std.log;
 const linux = std.os.linux;
-const Net = @import("net.zig");
-const Cgroup = @import("cgroup.zig");
 const checkErr = @import("utils.zig").checkErr;
 const c = @cImport(@cInclude("signal.h"));
+const Net = @import("net.zig");
+const Cgroup = @import("cgroup.zig");
+const Fs = @import("fs.zig");
 
 const ChildProcessArgs = struct {
     container: *Container,
@@ -14,18 +15,18 @@ const ChildProcessArgs = struct {
 };
 
 const Container = @This();
-rootfs: []const u8,
 name: []const u8,
 cmd: []const u8,
 
 net: Net,
 cgroup: Cgroup,
 allocator: std.mem.Allocator,
+fs: Fs,
 
 pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: std.mem.Allocator) !Container {
     return .{
         .name = name,
-        .rootfs = rootfs,
+        .fs = Fs.init(rootfs),
         .cmd = cmd,
 
         .net = try Net.init(allocator, name),
@@ -39,22 +40,10 @@ fn initNetwork(self: *Container) !void {
     try self.net.setupContainerNetNs();
     try self.net.setUpBridge();
     try self.net.createVethPair();
-    try self.net.setupDnsResolverConfig(self.rootfs);
+    try self.net.setupDnsResolverConfig(self.fs.rootfs);
 }
 
-fn mountVfs(_: *Container) !void {
-    try checkErr(linux.mount("proc", "proc", "proc", 0, 0), error.MountProc);
-    try checkErr(linux.mount("tmpfs", "tmp", "tmpfs", 0, 0), error.MountTmpFs);
-    // ignore sysfs mount error since it can fail when
-    // executed in a new user namespace
-    _ = linux.mount("sysfs", "sys", "sysfs", 0, 0);
-}
-
-fn setupRootDir(self: *Container) !void {
-    try checkErr(linux.chroot(@ptrCast(self.rootfs)), error.Chroot);
-    try checkErr(linux.chdir("/"), error.Chdir);
-    try self.mountVfs();
-
+fn sethostname(self: *Container) void {
     _ = linux.syscall2(.sethostname, @intFromPtr(self.name.ptr), self.name.len);
 }
 
@@ -100,9 +89,10 @@ export fn childFn(a: usize) u8 {
     checkErr(linux.setreuid(arg.uid, arg.uid), error.UID) catch @panic("unable to set uid");
     checkErr(linux.setregid(arg.gid, arg.gid), error.GID) catch @panic("unable to set gid");
 
-    arg.container.setupRootDir() catch |e| {
+    arg.container.sethostname();
+    arg.container.fs.setup() catch |e| {
         log.err("{}", .{e});
-        @panic("setup root dir failed");
+        @panic("unable to setup fs");
     };
 
     std.process.execv(arg.container.allocator, &.{arg.container.cmd}) catch @panic("errr");
