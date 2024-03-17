@@ -1,13 +1,10 @@
 const std = @import("std");
 const log = std.log;
 const linux = std.os.linux;
-const Net = @import("net.zig");
 const Container = @import("container.zig");
 const args = @import("args.zig");
 const ps = @import("ps.zig");
-
 const utils = @import("utils.zig");
-const checkErr = utils.checkErr;
 
 pub fn main() !void {
     var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
