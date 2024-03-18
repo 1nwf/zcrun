@@ -37,7 +37,6 @@ pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: st
 
 fn initNetwork(self: *Container) !void {
     try self.net.enableNat();
-    try self.net.setupContainerNetNs();
     try self.net.setUpBridge();
     try self.net.createVethPair();
     try self.net.setupDnsResolverConfig(self.fs.rootfs);
@@ -56,11 +55,14 @@ pub fn run(self: *Container) !void {
     var stack = try self.allocator.alloc(u8, 1024 * 1024);
     var ctid: i32 = 0;
     var ptid: i32 = 0;
-    const clone_flags: u32 = linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS | linux.CLONE.NEWIPC | linux.CLONE.NEWUSER | c.SIGCHLD;
+    const clone_flags: u32 = linux.CLONE.NEWNET | linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS | linux.CLONE.NEWIPC | linux.CLONE.NEWUSER | c.SIGCHLD;
     const pid = linux.clone(childFn, @intFromPtr(&stack[0]) + stack.len, clone_flags, @intFromPtr(&childp_args), &ptid, 0, &ctid);
     try checkErr(pid, error.CloneFailed);
     std.os.close(childp_args.pipe[0]);
 
+    // move one of the veth pairs to
+    // the child process network namespace
+    try self.net.moveVethToNs(@intCast(pid));
     // enter container cgroup
     try self.cgroup.enterCgroup(@intCast(pid));
     self.createUserRootMappings(@intCast(pid)) catch @panic("creating root user mapping failed");
@@ -93,6 +95,11 @@ export fn childFn(a: usize) u8 {
     arg.container.fs.setup() catch |e| {
         log.err("{}", .{e});
         @panic("unable to setup fs");
+    };
+
+    arg.container.net.setupContainerVethIf() catch |e| {
+        log.err("{}", .{e});
+        @panic("network setup failed");
     };
 
     std.process.execv(arg.container.allocator, &.{arg.container.cmd}) catch @panic("errr");

@@ -22,29 +22,6 @@ pub fn init(allocator: std.mem.Allocator, cid: []const u8) !Net {
     };
 }
 
-pub fn setupContainerNetNs(self: *Net) !void {
-    const cns_mount = try std.mem.concat(self.allocator, u8, &.{ NETNS_PATH, self.cid });
-    defer self.allocator.free(cns_mount);
-    log.info("cns_mount: {s}", .{cns_mount});
-
-    const cns = std.fs.createFileAbsolute(cns_mount, .{ .exclusive = true }) catch |e| {
-        if (e != error.PathAlreadyExists) return e;
-        const cns = try std.fs.openFileAbsolute(cns_mount, .{});
-        defer cns.close();
-
-        return setNetNs(cns.handle);
-    };
-    defer cns.close();
-
-    try checkErr(linux.unshare(linux.CLONE.NEWNET), error.Unshare);
-    try checkErr(linux.mount("/proc/self/ns/net", @ptrCast(cns_mount.ptr), "bind", linux.MS.BIND, 0), error.Mount);
-
-    const self_ns = try std.fs.openFileAbsolute("/proc/self/ns/net", .{});
-    defer self_ns.close();
-
-    return setNetNs(self_ns.handle);
-}
-
 pub fn setUpBridge(self: *Net) !void {
     if (self.linkExists(utils.BRIDGE_NAME)) return;
     try self.nl.linkAdd(.{ .bridge = utils.BRIDGE_NAME });
@@ -138,26 +115,39 @@ pub fn createVethPair(self: *Net) !void {
 
     var veth1_info = try self.nl.linkGet(.{ .name = veth1 });
     defer veth1_info.deinit();
+}
 
-    // move other veth interface to container netns
-    const cns_mount = try std.mem.concat(self.allocator, u8, &.{ NETNS_PATH, self.cid });
-    const netns = try std.fs.openFileAbsolute(cns_mount, .{});
-    defer {
-        self.allocator.free(cns_mount);
-        netns.close();
-    }
-    try self.nl.linkSet(.{ .index = veth1_info.msg.header.index, .netns_fd = netns.handle });
+// move veth1-xxx net interface to the pid's network namespace
+pub fn moveVethToNs(self: *Net, pid: linux.pid_t) !void {
+    const pid_netns_path = try std.fmt.allocPrint(self.allocator, "/proc/{}/ns/net", .{pid});
+    defer self.allocator.free(pid_netns_path);
+    const pid_netns = try std.fs.openFileAbsolute(pid_netns_path, .{});
+    defer pid_netns.close();
 
-    try setNetNs(netns.handle);
-    // create new rtnetlink conn in netns
+    const veth_name = try std.fmt.allocPrint(self.allocator, "veth1-{s}", .{self.cid});
+    defer self.allocator.free(veth_name);
+    const veth_info = try self.nl.linkGet(.{ .name = veth_name });
+    try self.nl.linkSet(.{ .index = veth_info.msg.header.index, .netns_fd = pid_netns.handle });
+}
+
+// this must be executed in the child process
+// after creating a new network namespace using clone.
+pub fn setupContainerVethIf(self: *Net) !void {
+    const veth_name = try std.fmt.allocPrint(self.allocator, "veth1-{s}", .{self.cid});
+    defer self.allocator.free(veth_name);
+    const pid_netns_path = try std.fmt.allocPrint(self.allocator, "/proc/{}/ns/net", .{linux.getpid()});
+    defer self.allocator.free(pid_netns_path);
+
+    // need to create new netlink connection because
+    // the existing one is tied to the parent namespace
     var nl = try NetLink.init(self.allocator);
     defer nl.deinit();
-    var cveth1_info = try nl.linkGet(.{ .name = veth1 });
-    defer cveth1_info.deinit();
+    var veth1_info = try nl.linkGet(.{ .name = veth_name });
+    defer veth1_info.deinit();
 
-    try nl.linkSet(.{ .index = cveth1_info.msg.header.index, .up = true });
+    try nl.linkSet(.{ .index = veth1_info.msg.header.index, .up = true });
     // TODO: use random private ip addrs that are not used
-    try nl.addrAdd(.{ .index = cveth1_info.msg.header.index, .addr = ip.getRandomIpv4Addr(), .prefix_len = 24 });
+    try nl.addrAdd(.{ .index = veth1_info.msg.header.index, .addr = ip.getRandomIpv4Addr(), .prefix_len = 24 });
     try nl.routeAdd(.{ .gateway = .{ 10, 0, 0, 1 } });
 
     // setup container loopback interface
