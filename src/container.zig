@@ -18,10 +18,10 @@ const Container = @This();
 name: []const u8,
 cmd: []const u8,
 
+fs: Fs,
 net: Net,
 cgroup: Cgroup,
 allocator: std.mem.Allocator,
-fs: Fs,
 
 pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: std.mem.Allocator) !Container {
     return .{
@@ -77,6 +77,19 @@ pub fn run(self: *Container) !void {
     }
 }
 
+// initializes the container environment
+// and executes the user passed cmd
+fn execCmd(self: *Container, uid: linux.uid_t, gid: linux.gid_t) !void {
+    try checkErr(linux.setreuid(uid, uid), error.UID);
+    try checkErr(linux.setregid(gid, gid), error.GID);
+
+    self.sethostname();
+    try self.fs.setup();
+    try self.net.setupContainerVethIf();
+
+    std.process.execv(self.allocator, &.{self.cmd}) catch return error.CmdFailed;
+}
+
 export fn childFn(a: usize) u8 {
     const arg: *ChildProcessArgs = @ptrFromInt(a);
     std.os.close(arg.pipe[1]);
@@ -86,23 +99,12 @@ export fn childFn(a: usize) u8 {
         _ = std.os.read(arg.pipe[0], &buff) catch @panic("pipe read failed");
     }
 
-    // sets the uid and gid inside the container as root
-    // this should be configurable in future
-    checkErr(linux.setreuid(arg.uid, arg.uid), error.UID) catch @panic("unable to set uid");
-    checkErr(linux.setregid(arg.gid, arg.gid), error.GID) catch @panic("unable to set gid");
-
-    arg.container.sethostname();
-    arg.container.fs.setup() catch |e| {
-        log.err("{}", .{e});
-        @panic("unable to setup fs");
+    arg.container.execCmd(arg.uid, arg.gid) catch |e| {
+        log.err("err: {}", .{e});
+        @panic("run failed");
     };
 
-    arg.container.net.setupContainerVethIf() catch |e| {
-        log.err("{}", .{e});
-        @panic("network setup failed");
-    };
-
-    std.process.execv(arg.container.allocator, &.{arg.container.cmd}) catch @panic("errr");
+    return 0;
 }
 
 fn createUserRootMappings(self: *Container, pid: linux.pid_t) !void {
