@@ -14,7 +14,7 @@ pub fn main() !void {
     switch (cmd) {
         .run => |r| {
             try zcrunInit();
-            var container = try Container.init(r.name, r.rootfs_path, r.cmd, allocator);
+            var container = try Container.init(r, allocator);
             defer container.deinit();
             try container.run();
         },

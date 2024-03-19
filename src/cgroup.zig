@@ -1,6 +1,7 @@
 const std = @import("std");
 const linux = std.os.linux;
 const utils = @import("utils.zig");
+const ResourceArgs = @import("args.zig").Resources;
 
 const Resource = enum {
     cpu,
@@ -16,17 +17,34 @@ const Resource = enum {
 
 /// container id
 cid: []const u8,
+options: ResourceArgs,
 allocator: std.mem.Allocator,
 
 const Cgroup = @This();
 
-pub fn init(cid: []const u8, allocator: std.mem.Allocator) !Cgroup {
+pub fn init(cid: []const u8, options: ResourceArgs, allocator: std.mem.Allocator) !Cgroup {
     var cgroups = Cgroup{
         .cid = cid,
+        .options = options,
         .allocator = allocator,
     };
     try cgroups.initDirs();
+    try cgroups.applyResourceLimits();
     return cgroups;
+}
+
+fn applyResourceLimits(self: *Cgroup) !void {
+    if (self.options.mem) |val| {
+        try self.setResourceMax(.memory, val);
+    }
+
+    if (self.options.cpu) |val| {
+        try self.setResourceMax(.cpu, val);
+    }
+
+    if (self.options.pids) |val| {
+        try self.setResourceMax(.pids, val);
+    }
 }
 
 fn initDirs(self: *Cgroup) !void {

@@ -6,6 +6,7 @@ const c = @cImport(@cInclude("signal.h"));
 const Net = @import("net.zig");
 const Cgroup = @import("cgroup.zig");
 const Fs = @import("fs.zig");
+const RunArgs = @import("args.zig").RunArgs;
 
 const ChildProcessArgs = struct {
     container: *Container,
@@ -23,15 +24,15 @@ net: Net,
 cgroup: Cgroup,
 allocator: std.mem.Allocator,
 
-pub fn init(name: []const u8, rootfs: []const u8, cmd: []const u8, allocator: std.mem.Allocator) !Container {
+pub fn init(run_args: RunArgs, allocator: std.mem.Allocator) !Container {
     return .{
-        .name = name,
-        .fs = Fs.init(rootfs),
-        .cmd = cmd,
+        .name = run_args.name,
+        .fs = Fs.init(run_args.rootfs_path),
+        .cmd = run_args.cmd,
 
-        .net = try Net.init(allocator, name),
+        .net = try Net.init(allocator, run_args.name),
         .allocator = allocator,
-        .cgroup = try Cgroup.init(name, allocator),
+        .cgroup = try Cgroup.init(run_args.name, run_args.resources, allocator),
     };
 }
 
