@@ -17,7 +17,7 @@ const ChildProcessArgs = struct {
 
 const Container = @This();
 name: []const u8,
-cmd: []const u8,
+cmd: []const []const u8,
 
 fs: Fs,
 net: Net,
@@ -88,7 +88,7 @@ fn execCmd(self: *Container, uid: linux.uid_t, gid: linux.gid_t) !void {
     try self.fs.setup();
     try self.net.setupContainerVethIf();
 
-    std.process.execv(self.allocator, &.{self.cmd}) catch return error.CmdFailed;
+    std.process.execv(self.allocator, self.cmd) catch return error.CmdFailed;
 }
 
 export fn childFn(a: usize) u8 {

@@ -8,16 +8,26 @@ inline fn eql(a: []const u8, b: []const u8) bool {
 pub const RunArgs = struct {
     name: []const u8,
     rootfs_path: []const u8,
-    cmd: []const u8,
+    cmd: []const []const u8,
     resources: Resources,
 
-    fn parse(args: *std.process.ArgIterator) !RunArgs {
-        return .{
+    fn parse(allocator: std.mem.Allocator, args: *std.process.ArgIterator) !RunArgs {
+        var run_args: RunArgs = .{
+            .resources = try Resources.parse(args),
             .name = args.next() orelse return error.MissingName,
             .rootfs_path = args.next() orelse return error.MissingRootfs,
-            .cmd = args.next() orelse return error.MissingCmd,
-            .resources = try Resources.parse(args),
+            .cmd = undefined,
         };
+
+        var cmd = std.ArrayList([]const u8).init(allocator);
+
+        while (args.next()) |val| {
+            try cmd.append(val);
+        }
+        if (cmd.items.len == 0) return error.MissingCmd;
+
+        run_args.cmd = try cmd.toOwnedSlice();
+        return run_args;
     }
 };
 
@@ -28,12 +38,20 @@ pub const Resources = struct {
     fn parse(args: *std.process.ArgIterator) !Resources {
         var r = Resources{};
         while (args.next()) |arg| {
+            var found_option = false;
             inline for (comptime std.meta.fieldNames(Resources)) |field| {
                 // options can be passed as "-m [val]" or "-mem [val]"
                 if (eql(arg, "-" ++ field[0..1]) or eql(arg, "-" ++ field)) {
+                    found_option = true;
                     @field(r, field) = args.next() orelse return error.MissingValue;
                 }
             }
+
+            if (found_option) continue;
+            // resource opts not passed
+            // reset iterator and return parsed values
+            args.inner.index -= 1;
+            break;
         }
         return r;
     }
@@ -49,7 +67,7 @@ pub const help =
     \\zcrun: linux container runtime
     \\
     \\arguments:
-    \\run <name> <rootfs_path> <cmd>
+    \\run [-mem] [-cpu] [-pids] <name> <rootfs_path> <cmd> 
     \\ps
     \\help
     \\
@@ -66,7 +84,7 @@ pub fn parseArgs(allocator: std.mem.Allocator) !Args {
             if (f.type == void) {
                 return @unionInit(Args, f.name, {});
             } else {
-                return @unionInit(Args, f.name, try f.type.parse(&cli_args));
+                return @unionInit(Args, f.name, try f.type.parse(allocator, &cli_args));
             }
         }
     }
