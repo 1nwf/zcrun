@@ -4,7 +4,7 @@ a simple linux container runtime built with zig
 
 # Features
 - namespaces:
-  - isolate network, pid, mount, and uts namespace
+  - isolate user, network, pid, mount, ipc, and uts namespace
 - cgroups:
   - support cgroups v2
   - limit memory, cpu, or pids (# of procs).
@@ -24,7 +24,7 @@ $ mkdir rootfs
 # export container rootfs dir using docker
 $ docker export $(docker create busybox) | tar -C rootfs -xvf -
 # run the container using zcrun
-# zcrun run <name>  <rootfs> <cmd>
+# zcrun run [-mem] [-cpu] [-pids] <name> <rootfs_path> <cmd>
 $ zcrun run busybox rootfs   sh
 ```
 
