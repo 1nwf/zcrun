@@ -7,7 +7,7 @@ pub const NETNS_PATH = INFO_PATH ++ "netns/";
 pub const BRIDGE_NAME = "zcrun0";
 
 pub fn checkErr(val: usize, err: anyerror) !void {
-    const e = linux.getErrno(val);
+    const e = std.posix.errno(val);
     // we ignore busy errors here because this fn is used
     // to check the error of mount sycalls.
     // busy is returned when the fs being mounted is currently in use
