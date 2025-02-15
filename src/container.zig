@@ -59,7 +59,7 @@ pub fn run(self: *Container) !void {
     const clone_flags: u32 = linux.CLONE.NEWNET | linux.CLONE.NEWNS | linux.CLONE.NEWPID | linux.CLONE.NEWUTS | linux.CLONE.NEWIPC | linux.CLONE.NEWUSER | c.SIGCHLD;
     const pid = linux.clone(childFn, @intFromPtr(&stack[0]) + stack.len, clone_flags, @intFromPtr(&childp_args), &ptid, 0, &ctid);
     try checkErr(pid, error.CloneFailed);
-    std.os.close(childp_args.pipe[0]);
+    std.posix.close(childp_args.pipe[0]);
 
     // move one of the veth pairs to
     // the child process network namespace
@@ -70,9 +70,9 @@ pub fn run(self: *Container) !void {
 
     // signal done by writing to pipe
     const buff = [_]u8{0};
-    _ = try std.os.write(childp_args.pipe[1], &buff);
+    _ = try std.posix.write(childp_args.pipe[1], &buff);
 
-    const wait_res = std.os.waitpid(@intCast(pid), 0);
+    const wait_res = std.posix.waitpid(@intCast(pid), 0);
     if (wait_res.status != 0) {
         return error.CmdFailed;
     }
@@ -93,11 +93,11 @@ fn execCmd(self: *Container, uid: linux.uid_t, gid: linux.gid_t) !void {
 
 export fn childFn(a: usize) u8 {
     const arg: *ChildProcessArgs = @ptrFromInt(a);
-    std.os.close(arg.pipe[1]);
+    std.posix.close(arg.pipe[1]);
     // block until parent sets up needed resources
     {
         var buff = [_]u8{1};
-        _ = std.os.read(arg.pipe[0], &buff) catch @panic("pipe read failed");
+        _ = std.posix.read(arg.pipe[0], &buff) catch @panic("pipe read failed");
     }
 
     arg.container.execCmd(arg.uid, arg.gid) catch |e| {

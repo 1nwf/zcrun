@@ -7,14 +7,14 @@ const route = @import("route.zig");
 
 const Self = @This();
 
-fd: std.os.socket_t,
+fd: std.posix.socket_t,
 allocator: std.mem.Allocator,
 
 pub fn init(allocator: std.mem.Allocator) !Self {
     const fd: i32 = @intCast(linux.socket(linux.AF.NETLINK, linux.SOCK.RAW, linux.NETLINK.ROUTE));
     const kernel_addr = linux.sockaddr.nl{ .pid = 0, .groups = 0 };
     const res = linux.bind(fd, @ptrCast(&kernel_addr), @sizeOf(@TypeOf(kernel_addr)));
-    if (linux.getErrno(res) != .SUCCESS) {
+    if (std.posix.errno(res) != .SUCCESS) {
         return error.BindFailed;
     }
 
@@ -22,15 +22,15 @@ pub fn init(allocator: std.mem.Allocator) !Self {
 }
 
 pub fn deinit(self: *Self) void {
-    std.os.close(self.fd);
+    std.posix.close(self.fd);
 }
 
 pub fn send(self: *Self, msg: []const u8) !void {
-    std.debug.assert(try std.os.send(self.fd, msg, 0) == msg.len);
+    std.debug.assert(try std.posix.send(self.fd, msg, 0) == msg.len);
 }
 
 pub fn recv(self: *Self, buff: []u8) !usize {
-    const n = try std.os.recv(self.fd, buff, 0);
+    const n = try std.posix.recv(self.fd, buff, 0);
     if (n == 0) {
         return error.InvalidResponse;
     }
@@ -39,7 +39,7 @@ pub fn recv(self: *Self, buff: []u8) !usize {
 
 pub fn recv_ack(self: *Self) !void {
     var buff: [512]u8 = std.mem.zeroes([512]u8);
-    const n = try std.os.recv(self.fd, &buff, 0);
+    const n = try std.posix.recv(self.fd, &buff, 0);
     if (n == 0) {
         return error.InvalidResponse;
     }
